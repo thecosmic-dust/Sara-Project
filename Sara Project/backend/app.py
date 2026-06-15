@@ -8,7 +8,9 @@ from database import (
     save_chat, get_chat_logs, get_dashboard_stats, update_user_credentials,
     create_notification,
     get_submission_by_id,
-    get_submission_by_nip
+    get_submission_by_nip,
+    create_hr_chat, get_hr_chats, get_hr_chat_by_id, update_hr_chat_reply,
+    get_hr_replies_by_nip, get_hr_replies_by_nama
 )
 from flask import Flask, render_template, request, jsonify, send_from_directory, session, redirect
 from flask_cors import CORS
@@ -238,28 +240,6 @@ def chat():
         print(f"⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"👤 USER: {user_message}")
 
-        # ===== HR CHAT =====
-        if user_message.lower().startswith("hr:"):
-
-            conn = get_db_connection()
-
-            conn.execute("""
-                INSERT INTO hr_chats
-                (nama, message, status)
-                VALUES (?, ?, ?)
-            """, (
-                "User",
-                user_message.replace("hr:", "").strip(),
-                "pending"
-            ))
-
-            conn.commit()
-            conn.close()
-
-            return jsonify({
-                "reply": "✅ Pesan Anda telah diteruskan ke HR. Mohon tunggu balasan.",
-                "source": "hr"
-            })
         # Check KB
         print("🔍 Checking Knowledge Base...")
         kb_result = find_answer(user_message)
@@ -317,7 +297,7 @@ def chat():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
-# ==================== ESCALATE TO HR ROUTES ====================
+# ==================== HR CHAT ROUTES ====================
 @app.route("/api/escalate-to-hr", methods=["POST"])
 def escalate_to_hr():
     """Escalate user question to HR - NO AUTH NEEDED"""
@@ -325,18 +305,13 @@ def escalate_to_hr():
         data = request.json
         nama = data.get('nama', '').strip()
         message = data.get('message', '').strip()
+        nip = data.get('nip', '').strip() if data.get('nip') else None
         
         if not nama or not message:
             return jsonify({'success': False, 'error': 'Nama dan pesan wajib diisi'}), 400
         
         # Save to database
-        conn = get_db_connection()
-        conn.execute("""
-            INSERT INTO hr_chats (nama, message, status)
-            VALUES (?, ?, ?)
-        """, (nama, message, 'pending'))
-        conn.commit()
-        conn.close()
+        create_hr_chat(nama, message, nip)
         
         print(f"✅ Escalated to HR: {nama} - {message[:50]}...")
         return jsonify({
@@ -348,79 +323,43 @@ def escalate_to_hr():
         print(f"❌ Error escalating to HR: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.route("/api/hr-chat", methods=["POST"])
-def send_to_hr():
-    """Alternative HR chat endpoint"""
+@app.route("/api/hr-messages", methods=["GET"])
+@admin_required
+def get_hr_messages():
+    """Get all HR messages for admin - ADMIN ONLY"""
     try:
-        data = request.json
-        nama = data.get('nama', '').strip()
-        message = data.get('message', '').strip()
-        
-        if not nama or not message:
-            return jsonify({'success': False, 'error': 'Nama dan pesan wajib diisi'}), 400
-        
-        conn = get_db_connection()
-        conn.execute("""
-            INSERT INTO hr_chats (nama, message, status)
-            VALUES (?, ?, ?)
-        """, (nama, message, 'pending'))
-        conn.commit()
-        conn.close()
-        
-        return jsonify({'success': True})
+        messages = get_hr_chats()
+        print(f"📋 Retrieved {len(messages)} HR messages")
+        return jsonify({'success': True, 'data': messages}), 200
     except Exception as e:
-        print(f"❌ Error in send_to_hr: {str(e)}")
+        print(f"❌ Error getting HR messages: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.route("/admin/hr-chat")
+@app.route("/api/hr-messages/<int:message_id>/reply", methods=["POST"])
 @admin_required
-def hr_chat():
-    """View HR chat messages (admin only)"""
-    conn = get_db_connection()
-    chats = conn.execute("""
-        SELECT *
-        FROM hr_chats
-        ORDER BY created_at DESC
-    """).fetchall()
-    conn.close()
-    
-    return render_template("hr_chat.html", chats=chats)
-
-@app.route("/admin/reply/<int:id>", methods=["POST"])
-def hr_reply(id):
-    """Reply to HR chat (admin only)"""
+def reply_hr_message(message_id):
+    """Reply to an HR message - ADMIN ONLY"""
     try:
-        reply = request.form.get("reply", "").strip()
+        data = request.json
+        reply = data.get('reply', '').strip()
         
-        conn = get_db_connection()
-        conn.execute("""
-            UPDATE hr_chats
-            SET reply = ?, status = 'answered'
-            WHERE id = ?
-        """, (reply, id))
-        conn.commit()
-        conn.close()
+        if not reply:
+            return jsonify({'success': False, 'error': 'Balasan tidak boleh kosong'}), 400
         
-        print(f"✅ HR reply sent for chat ID: {id}")
-        return redirect("/admin/hr-chat")
+        update_hr_chat_reply(message_id, reply)
+        print(f"✅ HR message {message_id} replied")
+        return jsonify({'success': True, 'message': 'Balasan terkirim'}), 200
     except Exception as e:
-        print(f"❌ Error replying to HR chat: {str(e)}")
-        return redirect("/admin/hr-chat")
+        print(f"❌ Error replying to HR message: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.route("/api/hr-reply/<nama>")
+@app.route("/api/hr-reply/<nama>", methods=["GET"])
 def get_reply(nama):
     """Get HR replies for a specific user - NO AUTH NEEDED"""
     try:
-        conn = get_db_connection()
-        chats = conn.execute("""
-            SELECT *
-            FROM hr_chats
-            WHERE nama = ?
-            ORDER BY created_at DESC
-        """, (nama,)).fetchall()
-        conn.close()
-        
-        return jsonify([dict(row) for row in chats])
+        replies = get_hr_replies_by_nama(nama)
+        print(f"📨 Retrieved HR replies for: {nama}")
+        return jsonify(replies)
     except Exception as e:
         print(f"❌ Error getting HR replies: {str(e)}")
         return jsonify([]), 500
