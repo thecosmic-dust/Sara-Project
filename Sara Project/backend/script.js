@@ -1,37 +1,16 @@
-const messageInput = document.getElementById('messageInput');
-const sendButton = document.getElementById('sendButton');
-const chatMessages = document.getElementById('chatMessages');
-
-// Fix: event listener untuk messageInput
-if (messageInput && sendButton) {
-    sendButton.addEventListener('click', handleSend);
-    messageInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            handleSend();
-        }
-    });
-}
-
-let chatCount = 0;
-
-// Load announcements on startup
+// ============ AUTO-LOAD ANNOUNCEMENTS ============
 async function loadAnnouncements() {
     try {
         const res = await fetch('/api/pengumuman');
-        const data = await res.json();
-
-        if(data.length > 0) {
-            const latest = data[0];
-            const banner = document.getElementById('announcementBanner');
-            const text = document.getElementById('announcementText');
-
-            const icon = latest.tipe === 'warning' ? '⚠️' : latest.tipe === 'success' ? '✅' : '📢';
-            text.innerHTML = `${icon} <strong>${latest.judul}:</strong> ${latest.isi}`;
-            banner.style.display = 'block';
+        const announcements = await res.json();
+        
+        if (announcements.length > 0) {
+            const latest = announcements[0];
+            document.getElementById('announcementText').textContent = `📢 ${latest.judul}`;
+            document.getElementById('announcementBanner').style.display = 'flex';
         }
-    } catch(e) {
-        console.log('No announcements');
+    } catch (e) {
+        console.error('Error loading announcements:', e);
     }
 }
 
@@ -39,78 +18,55 @@ function closeAnnouncement() {
     document.getElementById('announcementBanner').style.display = 'none';
 }
 
-async function handleSend() {
-    // Fix: gunakan messageInput bukan chatInput
-    const message = messageInput.value.trim();
-    if (message === '') {
-        messageInput.focus();
-        return;
-    }
+// ============ CHAT FUNCTIONALITY ============
+const chatMessages = document.getElementById('chatMessages');
+const messageInput = document.getElementById('messageInput');
+const sendBtn = document.getElementById('sendBtn');
 
+async function handleSend() {
+    const message = messageInput.value.trim();
+    if (!message) return;
+
+    // Display user message
     displayUserMessage(message);
     messageInput.value = '';
-    messageInput.focus();
+    sendBtn.disabled = true;
 
+    // Show loading
     const loadingBubble = showLoadingBubble();
-    const startTime = Date.now();
-    const minWaitTime = 1500;
 
     try {
-
-    const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            message: message
-        })
-    });
-
-    const data = await response.json();
-
-    removeLoadingBubble(loadingBubble);
-
-    if (response.ok && data.reply) {
+        const res = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message })
+        });
+        const data = await res.json();
+        
+        removeLoadingBubble(loadingBubble);
 
         if (data.type === 'location') {
             displayLocationMessage(data);
         } else {
             displayBotMessage(data.reply);
         }
-
-    } else {
-
-        displayBotMessage(
-            `❌ ${data.error || 'Error tidak diketahui'}`
-        );
-
-    }
-
-} catch (error) {
-
-    removeLoadingBubble(loadingBubble);
-
-    displayBotMessage(
-        `❌ Koneksi error: ${error.message}`
-    );
-
-}
-
-    // Count chats and show survey after 5 messages
-    chatCount++;
-    if(chatCount === 5) {
-        setTimeout(() => openModal('modalSurvey'), 2000);
+    } catch (e) {
+        removeLoadingBubble(loadingBubble);
+        displayBotMessage('Maaf, terjadi kesalahan. Coba lagi nanti.');
+    } finally {
+        sendBtn.disabled = false;
+        scrollToBottom();
     }
 }
 
 function displayUserMessage(text) {
     const wrapper = document.createElement('div');
     wrapper.className = 'message-wrapper user';
-    const bubble = document.createElement('div');
-    bubble.className = 'message-bubble';
-    bubble.innerHTML = formatMessage(text);
-    wrapper.appendChild(bubble);
+    wrapper.innerHTML = `
+        <div class="message-bubble">
+            <p>${formatMessage(text)}</p>
+        </div>
+    `;
     chatMessages.appendChild(wrapper);
     scrollToBottom();
 }
@@ -118,14 +74,12 @@ function displayUserMessage(text) {
 function displayBotMessage(text) {
     const wrapper = document.createElement('div');
     wrapper.className = 'message-wrapper bot';
-    const avatar = document.createElement('div');
-    avatar.className = 'bot-avatar';
-    avatar.textContent = '🤖';
-    const bubble = document.createElement('div');
-    bubble.className = 'message-bubble';
-    bubble.innerHTML = formatMessage(text);
-    wrapper.appendChild(avatar);
-    wrapper.appendChild(bubble);
+    wrapper.innerHTML = `
+        <div class="bot-avatar">🤖</div>
+        <div class="message-bubble">
+            <p>${formatMessage(text)}</p>
+        </div>
+    `;
     chatMessages.appendChild(wrapper);
     scrollToBottom();
 }
@@ -133,23 +87,15 @@ function displayBotMessage(text) {
 function displayLocationMessage(data) {
     const wrapper = document.createElement('div');
     wrapper.className = 'message-wrapper bot';
-    const avatar = document.createElement('div');
-    avatar.className = 'bot-avatar';
-    avatar.textContent = '🤖';
-    const bubble = document.createElement('div');
-    bubble.className = 'message-bubble location-bubble';
-    bubble.innerHTML = `
-        <p style="font-weight: bold; margin-bottom: 8px;">${escapeHtml(data.reply)}</p>
-        <p style="font-size: 13px; color: #666; margin-bottom: 8px;">${escapeHtml(data.address)}</p>
-        <div style="margin: 10px 0; padding: 10px; background: rgba(102, 126, 234, 0.1); border-radius: 8px; font-size: 12px;">
-            ${escapeHtml(data.details)}
+    wrapper.innerHTML = `
+        <div class="bot-avatar">🤖</div>
+        <div class="message-bubble location-bubble">
+            <p>${formatMessage(data.reply)}</p>
+            <p><strong>📍 ${data.address}</strong></p>
+            <p>${data.details}</p>
+            <a href="${data.maps_url}" target="_blank" class="maps-button">🗺️ Buka di Google Maps</a>
         </div>
-        <a href="${data.maps_url}" target="_blank" rel="noopener noreferrer" class="maps-button">
-            📍 Buka di Google Maps
-        </a>
     `;
-    wrapper.appendChild(avatar);
-    wrapper.appendChild(bubble);
     chatMessages.appendChild(wrapper);
     scrollToBottom();
 }
@@ -157,24 +103,21 @@ function displayLocationMessage(data) {
 function showLoadingBubble() {
     const wrapper = document.createElement('div');
     wrapper.className = 'message-wrapper bot';
-    wrapper.id = 'loading-bubble';
-    const avatar = document.createElement('div');
-    avatar.className = 'bot-avatar';
-    avatar.textContent = '🤖';
-    const loadingDiv = document.createElement('div');
-    loadingDiv.className = 'typing-indicator';
-    loadingDiv.innerHTML = `<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>`;
-    wrapper.appendChild(avatar);
-    wrapper.appendChild(loadingDiv);
+    wrapper.innerHTML = `
+        <div class="bot-avatar">🤖</div>
+        <div class="typing-indicator">
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+        </div>
+    `;
     chatMessages.appendChild(wrapper);
     scrollToBottom();
     return wrapper;
 }
 
-function removeLoadingBubble(loadingBubble) {
-    if (loadingBubble && loadingBubble.parentNode) {
-        loadingBubble.remove();
-    }
+function removeLoadingBubble(bubble) {
+    bubble.remove();
 }
 
 function scrollToBottom() {
@@ -191,307 +134,210 @@ function formatMessage(text) {
     return escapeHtml(text).replace(/\n/g, '<br>');
 }
 
-// Modal functions
+// ============ MODAL FUNCTIONS ============
 function openModal(id) {
     document.getElementById(id).classList.add('active');
 }
+
 function closeModal(id) {
     document.getElementById(id).classList.remove('active');
 }
 
-// Close modal when clicking outside
-window.addEventListener('click', (e) => {
-    if(e.target.classList.contains('modal-overlay')) {
-        e.target.classList.remove('active');
-    }
-});
-
-// Show toast notification
 function showToast(message, type = 'success') {
     const toast = document.createElement('div');
-    toast.style.cssText = `
-        position: fixed; bottom: 30px; right: 30px;
-        background: ${type === 'success' ? '#10b981' : '#ef4444'};
-        color: white; padding: 16px 24px; border-radius: 12px;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-        z-index: 1001; animation: slideIn 0.3s ease;
-        font-size: 14px; font-weight: 500;
-    `;
+    toast.className = `toast toast-${type}`;
     toast.textContent = message;
     document.body.appendChild(toast);
     
     setTimeout(() => {
-        toast.style.opacity = '0';
-        toast.style.transition = 'opacity 0.3s ease';
+        toast.classList.add('show');
+    }, 10);
+    
+    setTimeout(() => {
+        toast.classList.remove('show');
         setTimeout(() => toast.remove(), 300);
     }, 3000);
 }
 
-// ============ SUBMIT CUTI (USER - NO AUTH NEEDED) ============
+// ============ SUBMIT CUTI ============
 async function submitCuti() {
+    const nama = document.getElementById('cuti-nama').value.trim();
+    const nip = document.getElementById('cuti-nip').value.trim();
+    const jenis = document.getElementById('cuti-jenis').value;
+    const mulai = document.getElementById('cuti-mulai').value;
+    const selesai = document.getElementById('cuti-selesai').value;
+    const alasan = document.getElementById('cuti-alasan').value.trim();
+
+    if (!nama || !nip || !jenis || !mulai || !selesai) {
+        showToast('Semua field wajib diisi', 'error');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('nama', nama);
+    formData.append('nip', nip);
+    formData.append('jenis', jenis);
+    formData.append('tanggal_mulai', mulai);
+    formData.append('tanggal_selesai', selesai);
+    formData.append('alasan', alasan);
+
     try {
-        // Validasi input
-        const nama = document.getElementById('cutiNama').value.trim();
-        const nip = document.getElementById('cutiNip').value.trim();
-        const jenis = document.getElementById('cutiJenis').value;
-        const tanggal_mulai = document.getElementById('cutiMulai').value;
-        const tanggal_selesai = document.getElementById('cutiSelesai').value;
-        const alasan = document.getElementById('cutiAlasan').value.trim();
-
-        if (!nama || !nip || !jenis || !tanggal_mulai || !tanggal_selesai) {
-            showToast('⚠️ Semua field wajib diisi!', 'error');
-            return;
-        }
-
-        if (new Date(tanggal_mulai) > new Date(tanggal_selesai)) {
-            showToast('⚠️ Tanggal mulai harus sebelum tanggal selesai!', 'error');
-            return;
-        }
-
-        // Buat FormData
-        const formData = new FormData();
-        formData.append('nama', nama);
-        formData.append('nip', nip);
-        formData.append('jenis', jenis);
-        formData.append('tanggal_mulai', tanggal_mulai);
-        formData.append('tanggal_selesai', tanggal_selesai);
-        formData.append('alasan', alasan);
-
-        const file = document.getElementById('cutiLampiran').files[0];
-        if(file) {
-            // Validasi ukuran file
-            if(file.size > 5 * 1024 * 1024) {
-                showToast('❌ Ukuran file terlalu besar (max 5MB)', 'error');
-                return;
-            }
-            formData.append('lampiran', file);
-        }
-
-        // Disable button while submitting
-        const btn = document.getElementById('cutiSubmitBtn');
-        btn.disabled = true;
-        btn.textContent = '⏳ Mengirim...';
-
-        console.log('📤 Submitting cuti request...');
         const res = await fetch('/api/submissions', {
             method: 'POST',
             body: formData
         });
-
-        const result = await res.json();
-        
-        if (res.ok && result.success) {
-            console.log('✅ Cuti submitted successfully');
-            showToast('✅ ' + result.message, 'success');
-            
-            // Clear form
-            document.getElementById('cutiNama').value = '';
-            document.getElementById('cutiNip').value = '';
-            document.getElementById('cutiJenis').value = 'tahunan';
-            document.getElementById('cutiMulai').value = '';
-            document.getElementById('cutiSelesai').value = '';
-            document.getElementById('cutiAlasan').value = '';
-            document.getElementById('cutiLampiran').value = '';
-            
-            // Close modal
-            closeModal('modalCuti');
+        const data = await res.json();
+        if (data.success) {
+            showToast('Pengajuan cuti berhasil dikirim!');
+            closeModal('cutiModal');
+            document.getElementById('cuti-nama').value = '';
+            document.getElementById('cuti-nip').value = '';
+            document.getElementById('cuti-alasan').value = '';
         } else {
-            console.log('❌ Error:', result.message || result.error);
-            showToast('❌ ' + (result.message || result.error || 'Gagal mengirim pengajuan'), 'error');
+            showToast(data.message, 'error');
         }
-
-        // Re-enable button
-        btn.disabled = false;
-        btn.textContent = '📤 Kirim Pengajuan';
-    } catch(e) {
-        console.error('❌ Exception:', e);
-        showToast('❌ Terjadi kesalahan: ' + e.message, 'error');
-        
-        const btn = document.getElementById('cutiSubmitBtn');
-        btn.disabled = false;
-        btn.textContent = '📤 Kirim Pengajuan';
+    } catch (e) {
+        console.error(e);
+        showToast('Gagal mengajukan cuti', 'error');
     }
 }
 
-// ============ SURVEY RATING (USER - NO AUTH NEEDED) ============
-let currentRating = 5;
 function setRating(n) {
-    currentRating = n;
-    document.getElementById('surveyRating').value = n;
-    const stars = document.querySelectorAll('#starContainer span');
-    stars.forEach((s, i) => {
-        s.style.opacity = i < n ? '1' : '0.3';
-        s.style.filter = i < n ? 'grayscale(0)' : 'grayscale(1)';
+    document.querySelectorAll('.star-rating span').forEach((star, i) => {
+        star.textContent = i < n ? '⭐' : '☆';
     });
+    document.getElementById('rating-value').value = n;
 }
 
-// Submit Survey
+// ============ SUBMIT SURVEY ============
 async function submitSurvey() {
-    try {
-        const data = {
-            nama: document.getElementById('surveyNama').value || 'Anonim',
-            rating: currentRating,
-            saran: document.getElementById('surveySaran').value
-        };
+    const rating = document.getElementById('rating-value').value;
+    const nama = document.getElementById('survey-nama').value.trim() || 'Anonim';
+    const saran = document.getElementById('survey-saran').value.trim();
 
-        // Disable button while submitting
-        const btn = document.getElementById('surveySubmitBtn');
-        btn.disabled = true;
-        btn.textContent = '⏳ Mengirim...';
-
-        console.log('📤 Submitting survey...');
-        const res = await fetch('/api/survey', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(data)
-        });
-
-        const result = await res.json();
-        
-        if (res.ok) {
-            console.log('✅ Survey submitted successfully');
-            showToast('✅ ' + result.message, 'success');
-            
-            // Clear form
-            document.getElementById('surveyNama').value = '';
-            document.getElementById('surveySaran').value = '';
-            setRating(5);
-            
-            // Close modal
-            closeModal('modalSurvey');
-        } else {
-            console.log('❌ Error:', result.message || result.error);
-            showToast('❌ ' + (result.message || result.error || 'Gagal mengirim survey'), 'error');
-        }
-
-        // Re-enable button
-        btn.disabled = false;
-        btn.textContent = '✅ Kirim Feedback';
-    } catch(e) {
-        console.error('❌ Exception:', e);
-        showToast('❌ Terjadi kesalahan: ' + e.message, 'error');
-        
-        const btn = document.getElementById('surveySubmitBtn');
-        btn.disabled = false;
-        btn.textContent = '✅ Kirim Feedback';
-    }
-}
-
-async function cekStatus() {
-
-    const nip = prompt("Masukkan NIP Anda");
-
-    if (!nip) return;
-
-    const response = await fetch(
-        `http://localhost:5000/api/check-status/${nip}`
-    );
-
-    const result = await response.json();
-
-    if (!result.success) {
-        alert("Data tidak ditemukan");
+    if (!rating) {
+        showToast('Pilih rating terlebih dahulu', 'error');
         return;
     }
 
-    let pesan = "";
-
-    result.data.forEach(item => {
-
-        pesan +=
-        "Jenis : " + item.jenis + "\n" +
-        "Tanggal : " + item.tanggal_mulai + "\n" +
-        "Status : " + item.status + "\n\n";
-
-    });
-
-    alert(pesan);
+    try {
+        const res = await fetch('/api/survey', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rating: parseInt(rating), nama, saran })
+        });
+        const data = await res.json();
+        showToast('Terima kasih atas feedback Anda!');
+        closeModal('surveyModal');
+        document.getElementById('survey-nama').value = '';
+        document.getElementById('survey-saran').value = '';
+        setRating(0);
+    } catch (e) {
+        console.error(e);
+        showToast('Gagal mengirim survey', 'error');
+    }
 }
 
-// Init
-window.addEventListener('load', () => {
-    loadAnnouncements();
-
-    fetch('/api/test')
-        .then(res => res.json())
-        .then(data => console.log('✅ Server OK:', data))
-        .catch(err => console.error('❌ Server error:', err));
-
-    setTimeout(() => {
-        displayBotMessage('Halo! 👋 Saya SARA, asisten digital untuk PT Samaratu Daya Teknik. Apa yang bisa saya bantu?');
-    }, 500);
-});
-
-// ============ HUBUNGI HR - Fixed version ============
-async function hubungiHR() {
-    const nama = prompt("Siapa nama Anda?");
-    if (!nama) return;
-
-    const pesan = prompt("Tulis pertanyaan untuk HR");
-    if (!pesan) return;
+// ============ CEK STATUS ============
+async function cekStatus() {
+    const nip = document.getElementById('status-nip').value.trim();
+    if (!nip) {
+        showToast('NIP wajib diisi', 'error');
+        return;
+    }
 
     try {
-        // Kirim ke endpoint HR yang benar
-        const response = await fetch('/api/escalate-to-hr', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                nama: nama,
-                message: pesan
-            })
-        });
-
-        const data = await response.json();
+        const res = await fetch(`/api/check-status/${nip}`);
+        const data = await res.json();
         
-        if (response.ok) {
-            displayBotMessage('✅ Pertanyaan Anda telah diteruskan ke HR. Mereka akan menjawab dalam waktu singkat.');
-            showToast('Pertanyaan terkirim ke HR', 'success');
+        if (data.success) {
+            const statusDiv = document.getElementById('status-result');
+            statusDiv.innerHTML = data.data.map(item => `
+                <div style="margin: 10px 0; padding: 10px; background: #f0f0f0; border-radius: 8px;">
+                    <p><strong>${item.jenis}</strong> - ${item.tanggal_mulai} s/d ${item.tanggal_selesai}</p>
+                    <p>Status: <span class="badge badge-${item.status}">${item.status}</span></p>
+                </div>
+            `).join('');
         } else {
-            displayBotMessage(`❌ Gagal mengirim pertanyaan: ${data.error || 'Unknown error'}`);
-            showToast('Gagal mengirim ke HR', 'error');
+            document.getElementById('status-result').innerHTML = '<p style="color: #999;">Data tidak ditemukan</p>';
         }
-    } catch (error) {
-        displayBotMessage(`❌ Koneksi error: ${error.message}`);
-        showToast('Koneksi error', 'error');
+    } catch (e) {
+        console.error(e);
+        showToast('Gagal mengecek status', 'error');
     }
 }
 
-async function cekBalasanHR(){
+// ============ HUBUNGI HR ============
+async function hubungiHR() {
+    const nama = document.getElementById('hr-nama').value.trim();
+    const message = document.getElementById('hr-message').value.trim();
 
-    const nama = prompt(
-        "Masukkan nama yang digunakan saat menghubungi HR"
-    );
+    if (!nama || !message) {
+        showToast('Nama dan pesan wajib diisi', 'error');
+        return;
+    }
 
-    if(!nama) return;
-
-    const response =
-    await fetch(`/api/hr-reply/${nama}`);
-
-    const data =
-    await response.json();
-
-    let hasil = "";
-
-    data.forEach(item=>{
-
-        if(item.reply){
-
-            hasil +=
-            "Pertanyaan: "
-            + item.message +
-            "\n\nBalasan HR:\n"
-            + item.reply +
-            "\n\n";
+    try {
+        const res = await fetch('/api/escalate-to-hr', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nama, message })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast('Pesan Anda telah dikirim ke HR!');
+            closeModal('hrModal');
+            document.getElementById('hr-nama').value = '';
+            document.getElementById('hr-message').value = '';
+        } else {
+            showToast(data.error, 'error');
         }
+    } catch (e) {
+        console.error(e);
+        showToast('Gagal mengirim pesan', 'error');
+    }
+}
 
+async function cekBalasanHR() {
+    const nama = document.getElementById('hr-cek-nama').value.trim();
+    if (!nama) {
+        showToast('Nama wajib diisi', 'error');
+        return;
+    }
+
+    try {
+        const res = await fetch(`/api/hr-reply/${encodeURIComponent(nama)}`);
+        const data = await res.json();
+        
+        if (data.length > 0) {
+            const balasan = data.find(item => item.reply);
+            if (balasan) {
+                document.getElementById('hr-reply-result').innerHTML = `
+                    <div style="background: #e8f5e9; padding: 15px; border-radius: 8px; border-left: 3px solid #4caf50;">
+                        <p><strong>✅ Balasan HR:</strong></p>
+                        <p>${balasan.reply}</p>
+                        <p style="font-size: 12px; color: #666; margin-top: 10px;">Dibalas pada: ${new Date(balasan.replied_at).toLocaleString('id-ID')}</p>
+                    </div>
+                `;
+            } else {
+                document.getElementById('hr-reply-result').innerHTML = '<p style="color: #ff9800;">⏳ Pesan Anda masih dalam proses</p>';
+            }
+        } else {
+            document.getElementById('hr-reply-result').innerHTML = '<p style="color: #999;">Belum ada pesan dari Anda</p>';
+        }
+    } catch (e) {
+        console.error(e);
+        showToast('Gagal mengecek balasan', 'error');
+    }
+}
+
+// ============ EVENT LISTENERS ============
+if (sendBtn) {
+    sendBtn.addEventListener('click', handleSend);
+    messageInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') handleSend();
     });
-
-    if(hasil===""){
-        hasil="Belum ada balasan dari HR";
-    }
-
-    alert(hasil);
-
 }
+
+// Load announcements on startup
+loadAnnouncements();

@@ -44,6 +44,7 @@
             box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         }
         .sidebar a.active { background: rgba(255,255,255,0.25); }
+        .badge-notification { position: absolute; top: 0; right: 0; background: #ef4444; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
 
         .main { margin-left: 280px; padding: 30px; }
 
@@ -88,6 +89,7 @@
         .badge-pending { background: #fef3c7; color: #92400e; }
         .badge-approved { background: #d1fae5; color: #065f46; }
         .badge-rejected { background: #fee2e2; color: #991b1b; }
+        .badge-replied { background: #dbeafe; color: #0c4a6e; }
 
         .btn { 
             padding: 10px 20px; border: none; border-radius: 10px; cursor: pointer; 
@@ -172,6 +174,24 @@
             margin: 25px 0;
         }
 
+        .hr-message-card {
+            background: #f8f9fc;
+            padding: 18px;
+            border-radius: 12px;
+            border-left: 4px solid #e85d6d;
+            margin-bottom: 15px;
+            transition: all 0.3s;
+        }
+        .hr-message-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .hr-message-card .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .hr-message-card .nama { font-weight: 600; color: #333; }
+        .hr-message-card .time { font-size: 12px; color: #999; }
+        .hr-message-card .message { color: #555; line-height: 1.5; margin-bottom: 12px; }
+        .hr-message-card .reply-box { display: none; margin-top: 12px; }
+        .hr-message-card .reply-box.show { display: block; }
+        .hr-message-card .reply-textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; resize: vertical; min-height: 80px; }
+        .hr-message-card .reply-content { background: #e8f5e9; padding: 12px; border-radius: 8px; margin-top: 10px; color: #2e7d32; font-size: 13px; border-left: 3px solid #4caf50; }
+
         @media (max-width: 1024px) {
             .settings-grid {
                 grid-template-columns: 1fr;
@@ -186,6 +206,7 @@
         </div>
         <div class="sidebar-content">
             <a href="#" class="active" onclick="showTab(event, 'dashboard')">📊 Dashboard</a>
+            <a href="#" onclick="showTab(event, 'hr-messages')">💬 Pesan HR <span id="hr-badge" class="badge-notification hidden">0</span></a>
             <a href="#" onclick="showTab(event, 'cuti')">📋 Pengajuan Cuti</a>
             <a href="#" onclick="showTab(event, 'pengumuman')">📢 Pengumuman</a>
             <a href="#" onclick="showTab(event, 'survey')">⭐ Survey</a>
@@ -198,14 +219,13 @@
     <div class="main">
         <!-- DASHBOARD -->
         <div id="dashboard" class="tab-content">
-            <h1 class="page-title">Dashboard</h1>
+            <h1 class="page-title">📊 Dashboard</h1>
             <div class="cards">
                 <div class="card">
                     <div class="icon">💬</div>
                     <h3>Chat Hari Ini</h3>
                     <div class="value" id="chatToday">0</div>
                 </div>
-                
                 <div class="card">
                     <div class="icon">📊</div>
                     <h3>Total Chat</h3>
@@ -213,82 +233,65 @@
                 </div>
                 <div class="card">
                     <div class="icon">📋</div>
-                    <h3>Pengajuan Cuti</h3>
+                    <h3>Total Cuti</h3>
                     <div class="value" id="totalCuti">0</div>
                 </div>
                 <div class="card">
                     <div class="icon">⭐</div>
-                    <h3>Rating Rata-rata</h3>
+                    <h3>Rating Rata-Rata</h3>
                     <div class="value" id="avgRating">0</div>
-                </div>
-            </div>
-
-            <div class="section">
-                <h2>📢 Pengumuman Terbaru</h2>
-                <div id="pengumumanList">
-                    <div class="empty-state">
-                        <div class="emoji">📭</div>
-                        <p>Memuat pengumuman...</p>
-                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- CUTI -->
+        <!-- HR MESSAGES -->
+        <div id="hr-messages" class="tab-content hidden">
+            <h1 class="page-title">💬 Pesan dari User ke HR</h1>
+            <div class="section">
+                <div id="hr-messages-container"></div>
+            </div>
+        </div>
+
+        <!-- PENGAJUAN CUTI -->
         <div id="cuti" class="tab-content hidden">
-            <h1 class="page-title">Pengajuan Cuti</h1>
+            <h1 class="page-title">📋 Pengajuan Cuti</h1>
             <div class="section">
                 <table>
                     <thead>
                         <tr>
-                            <th>ID</th>
                             <th>Nama</th>
                             <th>NIP</th>
                             <th>Jenis</th>
-                            <th>Mulai</th>
-                            <th>Selesai</th>
-                            <th>Alasan</th>
+                            <th>Tanggal</th>
                             <th>Status</th>
                             <th>Aksi</th>
                         </tr>
                     </thead>
-                    <tbody id="cutiTable"></tbody>
+                    <tbody id="cuti-table">
+                    </tbody>
                 </table>
             </div>
         </div>
 
         <!-- PENGUMUMAN -->
         <div id="pengumuman" class="tab-content hidden">
-            <h1 class="page-title">Kelola Pengumuman</h1>
+            <h1 class="page-title">📢 Pengumuman</h1>
             <div class="section">
-                <h2>✨ Buat Pengumuman Baru</h2>
                 <div class="form-group">
-                    <label>Judul</label>
-                    <input type="text" id="pgJudul" placeholder="Contoh: Rapat Bulanan">
+                    <label>Judul Pengumuman</label>
+                    <input type="text" id="pengumuman-judul" placeholder="Masukkan judul">
                 </div>
                 <div class="form-group">
-                    <label>Isi</label>
-                    <textarea id="pgIsi" rows="3" placeholder="Tulis isi pengumuman..."></textarea>
+                    <label>Isi Pengumuman</label>
+                    <textarea id="pengumuman-isi" placeholder="Masukkan isi pengumuman" rows="5"></textarea>
                 </div>
-                <div class="form-group">
-                    <label>Tipe</label>
-                    <select id="pgTipe">
-                        <option value="info">ℹ️ Informasi Umum</option>
-                        <option value="warning">⚠️ Peringatan</option>
-                        <option value="success">✅ Pengumuman Sukses</option>
-                    </select>
-                </div>
-                <button class="btn btn-primary" onclick="buatPengumuman()">📢 Publikasikan</button>
-            </div>
-            <div class="section">
-                <h2>📋 Daftar Pengumuman</h2>
-                <div id="pengumumanAdminList"></div>
+                <button class="btn btn-primary" onclick="buatPengumuman()">Buat Pengumuman</button>
             </div>
         </div>
 
         <!-- SURVEY -->
         <div id="survey" class="tab-content hidden">
-            <h1 class="page-title">Hasil Survey Kepuasan</h1>
+            <h1 class="page-title">⭐ Hasil Survey</h1>
             <div class="section">
                 <table>
                     <thead>
@@ -299,299 +302,209 @@
                             <th>Tanggal</th>
                         </tr>
                     </thead>
-                    <tbody id="surveyTable"></tbody>
+                    <tbody id="survey-table">
+                    </tbody>
                 </table>
             </div>
         </div>
 
         <!-- CHAT LOGS -->
         <div id="chat" class="tab-content hidden">
-            <h1 class="page-title">Chat Logs</h1>
+            <h1 class="page-title">💬 Chat Logs</h1>
             <div class="section">
                 <table>
                     <thead>
                         <tr>
-                            <th>Waktu</th>
                             <th>User</th>
-                            <th>Response</th>
-                            <th>Source</th>
+                            <th>Pertanyaan</th>
+                            <th>Jawaban</th>
+                            <th>Sumber</th>
+                            <th>Waktu</th>
                         </tr>
                     </thead>
-                    <tbody id="chatTable"></tbody>
+                    <tbody id="chat-table">
+                    </tbody>
                 </table>
             </div>
         </div>
 
         <!-- SETTINGS -->
         <div id="settings" class="tab-content hidden">
-            <h1 class="page-title">⚙️ Pengaturan Admin</h1>
-            <div class="section">
-                <h2>🔐 Ubah Kredensial Admin</h2>
-                <p style="color: #666; margin-bottom: 20px;">Ubah username dan/atau password untuk keamanan yang lebih baik.</p>
-                
-                <div class="settings-grid">
-                    <div class="settings-box">
-                        <h3>👤 Ubah Username</h3>
-                        <div class="form-group">
-                            <label>Username Saat Ini</label>
-                            <input type="text" id="currentUsername" disabled>
-                            <p class="info-text">Username sekarang (read-only)</p>
-                        </div>
-                        <div class="form-group">
-                            <label>Username Baru</label>
-                            <input type="text" id="newUsername" placeholder="Masukkan username baru (min 3 karakter)">
-                        </div>
+            <h1 class="page-title">⚙️ Pengaturan</h1>
+            <div class="settings-grid">
+                <div class="settings-box">
+                    <h3>🔐 Ubah Username</h3>
+                    <div class="form-group">
+                        <label>Username Baru</label>
+                        <input type="text" id="new-username" placeholder="Masukkan username baru">
                     </div>
-
-                    <div class="settings-box">
-                        <h3>🔑 Ubah Password</h3>
-                        <div class="form-group">
-                            <label>Password Baru</label>
-                            <input type="password" id="newPassword" placeholder="Masukkan password baru (min 6 karakter)">
-                        </div>
-                        <div class="form-group">
-                            <label>Konfirmasi Password</label>
-                            <input type="password" id="confirmPassword" placeholder="Ketik ulang password baru">
-                        </div>
+                    <p class="info-text">Username minimal 3 karakter</p>
+                </div>
+                <div class="settings-box">
+                    <h3>🔑 Ubah Password</h3>
+                    <div class="form-group">
+                        <label>Password Baru</label>
+                        <input type="password" id="new-password" placeholder="Masukkan password baru">
                     </div>
-                </div>
-
-                <div class="divider"></div>
-
-                <h3 style="color: #333; margin-bottom: 15px;">🔒 Verifikasi Password Saat Ini</h3>
-                <div class="form-group">
-                    <label>Password Saat Ini (Wajib)</label>
-                    <input type="password" id="currentPassword" placeholder="Masukkan password Anda saat ini untuk verifikasi">
-                    <p class="info-text">Password Anda diperlukan untuk keamanan sebelum mengubah kredensial</p>
-                </div>
-
-                <div style="display: flex; gap: 10px; margin-top: 25px;">
-                    <button class="btn btn-primary" onclick="updateAdminCredentials()">💾 Simpan Perubahan</button>
-                    <button class="btn" style="background: #f0f0f0; color: #333;" onclick="resetCredentialsForm()">↻ Reset</button>
-                </div>
-
-                <div style="background: #eff6ff; border-left: 4px solid #3b82f6; padding: 15px; border-radius: 8px; margin-top: 25px;">
-                    <p style="color: #1e40af; font-size: 13px; margin: 0;">
-                        <strong>💡 Tips:</strong> Gunakan kombinasi huruf, angka, dan simbol untuk password yang kuat.
-                    </p>
+                    <div class="form-group">
+                        <label>Konfirmasi Password</label>
+                        <input type="password" id="confirm-password" placeholder="Konfirmasi password">
+                    </div>
+                    <p class="info-text">Password minimal 6 karakter</p>
                 </div>
             </div>
+            <div class="divider"></div>
+            <div class="form-group">
+                <label>Password Saat Ini (untuk verifikasi)</label>
+                <input type="password" id="current-password" placeholder="Masukkan password saat ini">
+            </div>
+            <button class="btn btn-primary" onclick="changeCredentials()">Simpan Perubahan</button>
         </div>
     </div>
 
-    <div id="toast" class="toast">
-        <span id="toastIcon">✅</span>
-        <span id="toastMsg">Berhasil!</span>
-    </div>
+    <div class="toast" id="toast"></div>
 
     <script>
-        console.log('Admin dashboard loaded');
-
+        // Show/Hide Tabs
         function showTab(e, tabName) {
             e.preventDefault();
-            console.log('Switching to tab:', tabName);
             
             // Hide all tabs
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.add('hidden'));
+            document.querySelectorAll('.sidebar a').forEach(a => a.classList.remove('active'));
             
             // Show selected tab
-            const selectedTab = document.getElementById(tabName);
-            if (selectedTab) {
-                selectedTab.classList.remove('hidden');
-                console.log('Tab shown:', tabName);
-            }
+            document.getElementById(tabName).classList.remove('hidden');
+            event.target.closest('a').classList.add('active');
             
-            // Update active nav
-            document.querySelectorAll('.sidebar a').forEach(el => el.classList.remove('active'));
-            e.target.classList.add('active');
-
             // Load data based on tab
-            if(tabName === 'cuti') loadCuti();
-            if(tabName === 'survey') loadSurvey();
-            if(tabName === 'chat') loadChatLogs();
-            if(tabName === 'pengumuman') loadPengumumanAdmin();
-            if(tabName === 'dashboard') loadStats();
-            if(tabName === 'settings') loadSettingsData();
+            if (tabName === 'dashboard') loadDashboard();
+            if (tabName === 'hr-messages') loadHRMessages();
+            if (tabName === 'cuti') loadCuti();
+            if (tabName === 'survey') loadSurvey();
+            if (tabName === 'chat') loadChatLogs();
         }
 
-        function showToast(msg, type='success') {
+        function showToast(message, type = 'success') {
             const toast = document.getElementById('toast');
-            document.getElementById('toastMsg').textContent = msg;
-            document.getElementById('toastIcon').textContent = type === 'success' ? '✅' : '❌';
-            toast.className = 'toast show toast-' + type;
+            toast.textContent = message;
+            toast.className = `toast show toast-${type}`;
             setTimeout(() => toast.classList.remove('show'), 3000);
         }
 
-        function logoutAdmin() {
-            if(confirm('Yakin mau logout?')) {
-                fetch('/api/logout')
-                    .then(() => window.location.href = '/login')
-                    .catch(e => alert('Error: ' + e.message));
-            }
-        }
-
-        function loadSettingsData() {
-            console.log('Loading settings data...');
-            fetch('/api/user')
-                .then(res => res.json())
-                .then(user => {
-                    console.log('User loaded:', user.username);
-                    document.getElementById('currentUsername').value = user.username;
-                })
-                .catch(err => {
-                    console.error('Error loading user data:', err);
-                    showToast('Error loading user data', 'error');
-                });
-        }
-
-        function resetCredentialsForm() {
-            document.getElementById('newUsername').value = '';
-            document.getElementById('newPassword').value = '';
-            document.getElementById('confirmPassword').value = '';
-            document.getElementById('currentPassword').value = '';
-            console.log('Form reset');
-        }
-
-        async function updateAdminCredentials() {
-            console.log('Updating credentials...');
-            const currentPassword = document.getElementById('currentPassword').value.trim();
-            const newUsername = document.getElementById('newUsername').value.trim();
-            const newPassword = document.getElementById('newPassword').value.trim();
-            const confirmPassword = document.getElementById('confirmPassword').value.trim();
-
-            if (!currentPassword) {
-                showToast('⚠️ Password saat ini wajib diisi!', 'error');
-                return;
-            }
-
-            if (!newUsername && !newPassword) {
-                showToast('⚠️ Pilih username atau password untuk diubah!', 'error');
-                return;
-            }
-
-            if (newUsername && newUsername.length < 3) {
-                showToast('⚠️ Username baru minimal 3 karakter!', 'error');
-                return;
-            }
-
-            if (newPassword && newPassword.length < 6) {
-                showToast('⚠️ Password baru minimal 6 karakter!', 'error');
-                return;
-            }
-
-            if (newPassword && newPassword !== confirmPassword) {
-                showToast('⚠️ Konfirmasi password tidak sesuai!', 'error');
-                return;
-            }
-
-            try {
-                const res = await fetch('/api/admin/change-credentials', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        current_password: currentPassword,
-                        new_username: newUsername || null,
-                        new_password: newPassword || null,
-                        confirm_password: confirmPassword || null
-                    })
-                });
-
-                const data = await res.json();
-                console.log('Response:', data);
-
-                if (res.ok) {
-                    showToast('✅ Kredensial berhasil diubah!', 'success');
-                    resetCredentialsForm();
-                    
-                    setTimeout(() => loadSettingsData(), 1000);
-                    
-                    if (newUsername) {
-                        setTimeout(() => {
-                            alert('Username telah diubah. Silakan login ulang dengan username baru.');
-                            window.location.href = '/login';
-                        }, 1500);
-                    }
-                } else {
-                    showToast('❌ ' + (data.error || 'Gagal mengubah kredensial'), 'error');
-                }
-            } catch(e) {
-                console.error('Error:', e);
-                showToast('❌ Terjadi kesalahan: ' + e.message, 'error');
-            }
-        }
-
-        async function loadStats() {
+        async function loadDashboard() {
             try {
                 const res = await fetch('/api/stats');
-                if(res.status === 401) {
-                    window.location.href = '/login';
-                    return;
-                }
                 const data = await res.json();
                 document.getElementById('chatToday').textContent = data.chat_today;
                 document.getElementById('chatTotal').textContent = data.chat_total;
                 document.getElementById('totalCuti').textContent = data.total_cuti;
                 document.getElementById('avgRating').textContent = data.avg_rating;
+            } catch (e) {
+                console.error(e);
+                showToast('Gagal memuat dashboard', 'error');
+            }
+        }
 
-                const pgList = document.getElementById('pengumumanList');
-                if(data.pengumuman && data.pengumuman.length > 0) {
-                    pgList.innerHTML = data.pengumuman.map(p => `
-                        <div style="padding: 15px; background: linear-gradient(135deg, #667eea08, #764ba208); border-radius: 12px; margin-bottom: 10px; border-left: 4px solid ${p.tipe === 'warning' ? '#f59e0b' : p.tipe === 'success' ? '#10b981' : '#3b82f6'};">
-                            <strong style="font-size: 16px;">${p.judul}</strong> 
-                            <span class="badge badge-${p.tipe}">${p.tipe}</span>
-                            <p style="margin-top: 8px; color: #666; line-height: 1.6;">${p.isi}</p>
-                            <small style="color: #aaa;">${new Date(p.created_at).toLocaleString('id-ID')}</small>
-                        </div>
-                    `).join('');
-                } else {
-                    pgList.innerHTML = `
-                        <div class="empty-state">
-                            <div class="emoji">📭</div>
-                            <p>Belum ada pengumuman</p>
-                        </div>`;
+        async function loadHRMessages() {
+            try {
+                const res = await fetch('/api/hr-messages');
+                const data = await res.json();
+                const container = document.getElementById('hr-messages-container');
+                
+                if (!data.data || data.data.length === 0) {
+                    container.innerHTML = '<div class="empty-state"><div class="emoji">📭</div><p>Belum ada pesan</p></div>';
+                    return;
                 }
-            } catch(e) {
-                console.error('Error loading stats:', e);
-                showToast('Error loading stats', 'error');
+
+                // Update badge
+                const pending = data.data.filter(m => m.status === 'pending').length;
+                const badge = document.getElementById('hr-badge');
+                if (pending > 0) {
+                    badge.textContent = pending;
+                    badge.classList.remove('hidden');
+                } else {
+                    badge.classList.add('hidden');
+                }
+
+                container.innerHTML = data.data.map(msg => `
+                    <div class="hr-message-card" id="msg-${msg.id}">
+                        <div class="header">
+                            <span class="nama">👤 ${msg.nama}</span>
+                            <span class="badge badge-${msg.status}">${msg.status === 'pending' ? '⏳ Menunggu' : '✅ Sudah Dibalas'}</span>
+                        </div>
+                        <div class="time">📅 ${new Date(msg.created_at).toLocaleString('id-ID')}</div>
+                        <div class="message">💬 ${msg.message}</div>
+                        ${msg.reply ? `<div class="reply-content">✅ Balasan: ${msg.reply}</div>` : ''}
+                        ${msg.status === 'pending' ? `
+                            <button class="btn btn-sm btn-primary" onclick="toggleReplyBox(${msg.id})">Balas</button>
+                            <div class="reply-box" id="reply-box-${msg.id}">
+                                <textarea class="reply-textarea" id="reply-text-${msg.id}" placeholder="Tulis balasan Anda..."></textarea>
+                                <button class="btn btn-sm btn-success" onclick="sendReply(${msg.id})">Kirim Balasan</button>
+                                <button class="btn btn-sm" onclick="toggleReplyBox(${msg.id})" style="background: #ccc; color: #333;">Batal</button>
+                            </div>
+                        ` : ''}
+                    </div>
+                `).join('');
+            } catch (e) {
+                console.error(e);
+                showToast('Gagal memuat pesan HR', 'error');
+            }
+        }
+
+        function toggleReplyBox(msgId) {
+            const box = document.getElementById(`reply-box-${msgId}`);
+            box.classList.toggle('show');
+        }
+
+        async function sendReply(msgId) {
+            const reply = document.getElementById(`reply-text-${msgId}`).value.trim();
+            if (!reply) {
+                showToast('Balasan tidak boleh kosong', 'error');
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/hr-messages/${msgId}/reply`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reply })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('Balasan terkirim!');
+                    loadHRMessages();
+                } else {
+                    showToast(data.error, 'error');
+                }
+            } catch (e) {
+                console.error(e);
+                showToast('Gagal mengirim balasan', 'error');
             }
         }
 
         async function loadCuti() {
             try {
                 const res = await fetch('/api/cuti');
-                if(res.status === 401) {
-                    window.location.href = '/login';
-                    return;
-                }
                 const data = await res.json();
-                const tbody = document.getElementById('cutiTable');
-
-                if(data.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><p>Belum ada pengajuan cuti</p></div></td></tr>`;
-                    return;
-                }
-
-                tbody.innerHTML = data.map(c => `
+                const table = document.getElementById('cuti-table');
+                
+                table.innerHTML = data.map(item => `
                     <tr>
-                        <td>#${c.id}</td>
-                        <td><strong>${c.nama}</strong></td>
-                        <td>${c.nip}</td>
-                        <td>${c.jenis_cuti || c.jenis}</td>
-                        <td>${c.tanggal_mulai}</td>
-                        <td>${c.tanggal_selesai}</td>
-                        <td>${c.alasan || '-'}</td>
-                        <td><span class="badge badge-${c.status}">${c.status}</span></td>
+                        <td>${item.nama}</td>
+                        <td>${item.nip}</td>
+                        <td>${item.jenis}</td>
+                        <td>${item.tanggal_mulai} s/d ${item.tanggal_selesai}</td>
+                        <td><span class="badge badge-${item.status}">${item.status}</span></td>
                         <td>
-                            ${c.status === 'pending' ? `
-                                <button class="btn btn-success btn-sm" onclick="updateCutiStatus(${c.id}, 'approved')">✅ Setuju</button>
-                                <button class="btn btn-danger btn-sm" onclick="updateCutiStatus(${c.id}, 'rejected')">❌ Tolak</button>
-                            ` : '<span style="color:#999;font-size:12px;">Sudah diproses</span>'}
+                            <button class="btn btn-sm btn-success" onclick="updateCutiStatus(${item.id}, 'approved')">Terima</button>
+                            <button class="btn btn-sm btn-danger" onclick="updateCutiStatus(${item.id}, 'rejected')">Tolak</button>
                         </td>
                     </tr>
                 `).join('');
-            } catch(e) {
-                console.error('Error loading cuti:', e);
-                showToast('Error loading cuti', 'error');
+            } catch (e) {
+                console.error(e);
+                showToast('Gagal memuat cuti', 'error');
             }
         }
 
@@ -599,144 +512,138 @@
             try {
                 const res = await fetch(`/api/submissions/${id}/status`, {
                     method: 'PUT',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({status})
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status })
                 });
                 const data = await res.json();
-
-                if(res.ok) {
-                    showToast(data.message, 'success');
-                    loadCuti();
-                    loadStats();
-                } else {
-                    showToast(data.error || 'Gagal memperbarui status', 'error');
-                }
-            } catch(e) {
-                showToast('Terjadi kesalahan koneksi', 'error');
-            }
-        }
-
-        async function loadSurvey() {
-            try {
-                const res = await fetch('/api/survey');
-                if(res.status === 401) {
-                    window.location.href = '/login';
-                    return;
-                }
-                const data = await res.json();
-                const tbody = document.getElementById('surveyTable');
-
-                if(data.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="4"><div class="empty-state"><p>Belum ada survey</p></div></td></tr>`;
-                    return;
-                }
-
-                tbody.innerHTML = data.map(s => `
-                    <tr>
-                        <td>${s.nama || 'Anonim'}</td>
-                        <td style="font-size:18px;">${'⭐'.repeat(s.rating)}${'☆'.repeat(5-s.rating)}</td>
-                        <td>${s.saran || '-'}</td>
-                        <td>${new Date(s.created_at).toLocaleDateString('id-ID')}</td>
-                    </tr>
-                `).join('');
-            } catch(e) {
-                console.error('Error loading survey:', e);
-                showToast('Error loading survey', 'error');
-            }
-        }
-
-        async function loadChatLogs() {
-            try {
-                const res = await fetch('/api/chat-logs');
-                if(res.status === 401) {
-                    window.location.href = '/login';
-                    return;
-                }
-                const data = await res.json();
-                const tbody = document.getElementById('chatTable');
-
-                if(data.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="4"><div class="empty-state"><p>Belum ada chat</p></div></td></tr>`;
-                    return;
-                }
-
-                tbody.innerHTML = data.map(c => `
-                    <tr>
-                        <td>${new Date(c.created_at).toLocaleString('id-ID')}</td>
-                        <td><strong>${c.user_message}</strong></td>
-                        <td>${c.bot_response.substring(0, 100)}${c.bot_response.length > 100 ? '...' : ''}</td>
-                        <td><span class="badge badge-${c.source === 'kb' ? 'approved' : 'pending'}">${c.source}</span></td>
-                    </tr>
-                `).join('');
-            } catch(e) {
-                console.error('Error loading chat logs:', e);
-                showToast('Error loading chat logs', 'error');
+                showToast('Status diperbarui!');
+                loadCuti();
+            } catch (e) {
+                console.error(e);
+                showToast('Gagal update status', 'error');
             }
         }
 
         async function buatPengumuman() {
-            const judul = document.getElementById('pgJudul').value.trim();
-            const isi = document.getElementById('pgIsi').value.trim();
-            const tipe = document.getElementById('pgTipe').value;
-
-            if(!judul || !isi) {
-                showToast('Judul dan isi wajib diisi!', 'error');
+            const judul = document.getElementById('pengumuman-judul').value.trim();
+            const isi = document.getElementById('pengumuman-isi').value.trim();
+            
+            if (!judul || !isi) {
+                showToast('Judul dan isi wajib diisi', 'error');
                 return;
             }
 
             try {
                 const res = await fetch('/api/pengumuman', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({judul, isi, tipe})
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ judul, isi, tipe: 'info' })
                 });
-
-                if(res.ok) {
-                    showToast('Pengumuman berhasil dibuat!', 'success');
-                    document.getElementById('pgJudul').value = '';
-                    document.getElementById('pgIsi').value = '';
-                    loadPengumumanAdmin();
-                    loadStats();
-                } else {
-                    const error = await res.json();
-                    showToast(error.error || 'Gagal membuat pengumuman', 'error');
-                }
-            } catch(e) {
-                showToast('Gagal membuat pengumuman: ' + e.message, 'error');
-            }
-        }
-
-        async function loadPengumumanAdmin() {
-            try {
-                const res = await fetch('/api/pengumuman');
                 const data = await res.json();
-                const list = document.getElementById('pengumumanAdminList');
-
-                if(data.length === 0) {
-                    list.innerHTML = `<div class="empty-state"><p>Belum ada pengumuman</p></div>`;
-                    return;
+                if (data.success) {
+                    showToast('Pengumuman berhasil dibuat!');
+                    document.getElementById('pengumuman-judul').value = '';
+                    document.getElementById('pengumuman-isi').value = '';
+                } else {
+                    showToast(data.error, 'error');
                 }
-
-                list.innerHTML = data.map(p => `
-                    <div style="padding: 18px; background: linear-gradient(135deg, #667eea08, #764ba208); border-radius: 14px; margin-bottom: 12px; border-left: 4px solid ${p.tipe === 'warning' ? '#f59e0b' : p.tipe === 'success' ? '#10b981' : '#3b82f6'};">
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                            <strong style="font-size: 16px;">${p.judul}</strong> 
-                            <span class="badge badge-${p.tipe}">${p.tipe}</span>
-                        </div>
-                        <p style="color: #666; line-height: 1.6; margin-bottom: 8px;">${p.isi}</p>
-                        <small style="color: #aaa;">${new Date(p.created_at).toLocaleString('id-ID')}</small>
-                    </div>
-                `).join('');
-            } catch(e) {
-                console.error('Error loading pengumuman:', e);
-                showToast('Error loading pengumuman', 'error');
+            } catch (e) {
+                console.error(e);
+                showToast('Gagal membuat pengumuman', 'error');
             }
         }
 
-        window.addEventListener('load', () => {
-            console.log('Page loaded, loading stats...');
-            loadStats();
-        });
+        async function loadSurvey() {
+            try {
+                const res = await fetch('/api/survey');
+                const data = await res.json();
+                const table = document.getElementById('survey-table');
+                
+                table.innerHTML = data.map(item => `
+                    <tr>
+                        <td>${item.nama}</td>
+                        <td>⭐ ${item.rating}/5</td>
+                        <td>${item.saran || '-'}</td>
+                        <td>${new Date(item.created_at).toLocaleDateString('id-ID')}</td>
+                    </tr>
+                `).join('');
+            } catch (e) {
+                console.error(e);
+                showToast('Gagal memuat survey', 'error');
+            }
+        }
+
+        async function loadChatLogs() {
+            try {
+                const res = await fetch('/api/chat-logs');
+                const data = await res.json();
+                const table = document.getElementById('chat-table');
+                
+                table.innerHTML = data.map(item => `
+                    <tr>
+                        <td>User</td>
+                        <td>${item.user_message.substring(0, 50)}...</td>
+                        <td>${item.bot_response.substring(0, 50)}...</td>
+                        <td><span class="badge badge-pending">${item.source}</span></td>
+                        <td>${new Date(item.created_at).toLocaleString('id-ID')}</td>
+                    </tr>
+                `).join('');
+            } catch (e) {
+                console.error(e);
+                showToast('Gagal memuat chat logs', 'error');
+            }
+        }
+
+        async function changeCredentials() {
+            const newUsername = document.getElementById('new-username').value.trim();
+            const newPassword = document.getElementById('new-password').value.trim();
+            const confirmPassword = document.getElementById('confirm-password').value.trim();
+            const currentPassword = document.getElementById('current-password').value.trim();
+
+            if (!currentPassword) {
+                showToast('Password saat ini wajib diisi', 'error');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/admin/change-credentials', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        current_password: currentPassword,
+                        new_username: newUsername || undefined,
+                        new_password: newPassword || undefined,
+                        confirm_password: confirmPassword || undefined
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('Perubahan berhasil disimpan!');
+                    document.getElementById('new-username').value = '';
+                    document.getElementById('new-password').value = '';
+                    document.getElementById('confirm-password').value = '';
+                    document.getElementById('current-password').value = '';
+                } else {
+                    showToast(data.error, 'error');
+                }
+            } catch (e) {
+                console.error(e);
+                showToast('Gagal mengubah kredensial', 'error');
+            }
+        }
+
+        async function logoutAdmin() {
+            try {
+                await fetch('/api/logout');
+                window.location.href = '/login';
+            } catch (e) {
+                console.error(e);
+                showToast('Gagal logout', 'error');
+            }
+        }
+
+        // Load dashboard on startup
+        loadDashboard();
     </script>
 </body>
 </html>
