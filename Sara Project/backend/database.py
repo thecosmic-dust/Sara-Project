@@ -89,15 +89,17 @@ def init_db():
     )
     """)
 
-    # HR CHATS
+    # HR CHATS - IMPROVED VERSION
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS hr_chats(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nama TEXT,
-        message TEXT,
+        nama TEXT NOT NULL,
+        nip TEXT,
+        message TEXT NOT NULL,
         reply TEXT,
         status TEXT DEFAULT 'pending',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        replied_at TIMESTAMP
     )
     """)
 
@@ -327,6 +329,86 @@ def save_chat(user_id, user_message, bot_response, source='kb'):
 def get_chat_logs(limit=100):
     conn = get_db_connection()
     data = conn.execute("SELECT * FROM chat_logs ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
+    conn.close()
+    return [dict(row) for row in data]
+
+# ============ HR CHAT FUNCTIONS ============
+def create_hr_chat(nama, message, nip=None):
+    """Simpan pesan dari user ke HR"""
+    conn = get_db_connection()
+    try:
+        conn.execute("""
+        INSERT INTO hr_chats (nama, nip, message, status)
+        VALUES (?, ?, ?, 'pending')
+        """, (nama, nip, message))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        conn.close()
+        raise Exception(f"Gagal menyimpan pesan HR: {str(e)}")
+
+def get_hr_chats(status=None):
+    """Get all HR chat messages"""
+    conn = get_db_connection()
+    if status:
+        data = conn.execute("""
+        SELECT * FROM hr_chats
+        WHERE status = ?
+        ORDER BY created_at DESC
+        """, (status,)).fetchall()
+    else:
+        data = conn.execute("""
+        SELECT * FROM hr_chats
+        ORDER BY created_at DESC
+        """).fetchall()
+    conn.close()
+    return [dict(row) for row in data]
+
+def get_hr_chat_by_id(chat_id):
+    """Get specific HR chat by ID"""
+    conn = get_db_connection()
+    data = conn.execute("""
+    SELECT * FROM hr_chats WHERE id = ?
+    """, (chat_id,)).fetchone()
+    conn.close()
+    return dict(data) if data else None
+
+def update_hr_chat_reply(chat_id, reply):
+    """Update HR chat with reply"""
+    conn = get_db_connection()
+    try:
+        conn.execute("""
+        UPDATE hr_chats
+        SET reply = ?, status = 'replied', replied_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+        """, (reply, chat_id))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        conn.close()
+        raise Exception(f"Gagal menyimpan balasan: {str(e)}")
+
+def get_hr_replies_by_nip(nip):
+    """Get HR replies for a specific NIP"""
+    conn = get_db_connection()
+    data = conn.execute("""
+    SELECT * FROM hr_chats
+    WHERE nip = ? AND reply IS NOT NULL
+    ORDER BY replied_at DESC
+    """, (nip,)).fetchall()
+    conn.close()
+    return [dict(row) for row in data]
+
+def get_hr_replies_by_nama(nama):
+    """Get HR replies for a specific nama"""
+    conn = get_db_connection()
+    data = conn.execute("""
+    SELECT * FROM hr_chats
+    WHERE nama = ? AND reply IS NOT NULL
+    ORDER BY replied_at DESC
+    """, (nama,)).fetchall()
     conn.close()
     return [dict(row) for row in data]
 
